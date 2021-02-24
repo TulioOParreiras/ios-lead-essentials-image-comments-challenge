@@ -8,8 +8,20 @@
 
 import XCTest
 
+import EssentialFeed
+
 final class RemoteCommentsLoader {
+	private let url: URL
+	private let client: HTTPClient
 	
+	init(url: URL, client: HTTPClient) {
+		self.url = url
+		self.client = client
+	}
+	
+	func load() {
+		client.get(from: url) { _ in }
+	}
 }
 
 class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
@@ -20,9 +32,20 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		XCTAssertTrue(client.requestedURLs.isEmpty)
 	}
 	
-	private func makeSUT() -> (sut: RemoteCommentsLoader, client: HTTPClientSpy) {
-		let sut = RemoteCommentsLoader()
+	func test_load_requestsDataFromURL() {
+		let url = URL(string: "https://a-given-url.com")!
+		let (sut, client) = makeSUT(url: url)
+		
+		sut.load()
+		
+		XCTAssertEqual(client.requestedURLs, [url])
+	}
+	
+	// MARK: - Helpers
+	
+	private func makeSUT(url: URL = URL(string: "https://any-url.com")!) -> (sut: RemoteCommentsLoader, client: HTTPClientSpy) {
 		let client = HTTPClientSpy()
+		let sut = RemoteCommentsLoader(url: url, client: client)
 		
 		return (sut, client)
 	}
