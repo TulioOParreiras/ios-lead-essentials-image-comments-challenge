@@ -41,8 +41,15 @@ final class RemoteCommentsLoader {
 		client.get(from: url) { result in
 			switch result {
 			case let .success((data, response)):
-				if response.statusCode == 200, let root = try? JSONDecoder().decode(Root.self, from: data) {
-					completion(.success(root.items.map { $0.model }))
+				let decoder = JSONDecoder()
+				decoder.dateDecodingStrategy = .iso8601
+				if response.statusCode == 200 {
+					do {
+						let root = try decoder.decode(Root.self, from: data)
+						completion(.success(root.items.map { $0.model }))
+					} catch {
+						completion(.failure(RemoteCommentsLoader.Error.invalidData))
+					}
 				} else {
 					completion(.failure(RemoteCommentsLoader.Error.invalidData))
 				}
@@ -138,6 +145,29 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		})
 	}
 	
+	func test_load_deliversItemsOn200HTTPResponseWithJSONItems() {
+		let (sut, client) = makeSUT()
+		
+		let item1 = makeItem(
+			id: UUID(),
+			message: "a message",
+			createdAt: (Date(timeIntervalSince1970: 1598627222), "2020-08-28T15:07:02+00:00"),
+			author_name: "a username"
+		)
+		let item2 = makeItem(
+			id: UUID(),
+			message: "another name",
+			createdAt: (Date(timeIntervalSince1970: 1577881882), "2020-01-01T12:31:22+00:00"),
+			author_name: "another username"
+		)
+		
+		let items = [item1.model, item2.model]
+		expect(sut, toCompleteWith: .success(items), when: {
+			let json = makeItemsJSON([item1.json, item2.json])
+			client.complete(withStatusCode: 200, data: json)
+		})
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT(url: URL = URL(string: "https://any-url.com")!) -> (sut: RemoteCommentsLoader, client: HTTPClientSpy) {
@@ -152,15 +182,30 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		return try! JSONSerialization.data(withJSONObject: json)
 	}
 	
+	private func makeItem(id: UUID, message: String, createdAt: (date: Date, iso8601String: String), author_name: String) -> (model: FeedImageComment, json: [String: Any]) {
+		let item = FeedImageComment(id: id, message: message, createdAt: createdAt.date, author: CommentAuthor(username: author_name))
+		
+		let json: [String: Any] = [
+			"id": id.uuidString,
+			"message": message,
+			"created_at": createdAt.iso8601String,
+			"author": [
+				"username": author_name
+			]
+		]
+		
+		return (item, json)
+	}
+	
 	private func expect(_ sut: RemoteCommentsLoader, toCompleteWith expectedResult: RemoteCommentsLoader.Result, when action: () -> Void, file: StaticString = #file, line: UInt = #line) {
 		let exp = expectation(description: "Wait for load completion")
 		
 		sut.load { receivedResult in
 			switch (receivedResult, expectedResult) {
 			case let (.success(receivedItems), .success(expectedItems)):
-				XCTAssertEqual(receivedItems, expectedItems, "Expected items \(expectedItems), got \(receivedItems) instead", file: file, line: line)
+				XCTAssertEqual(receivedItems, expectedItems, file: file, line: line)
 			case let (.failure(receivedError as RemoteCommentsLoader.Error), .failure(expectedError as RemoteCommentsLoader.Error)):
-				XCTAssertEqual(receivedError, expectedError, "Expected error \(expectedError), got \(receivedError) instead", file: file, line: line)
+				XCTAssertEqual(receivedError, expectedError, file: file, line: line)
 			default:
 				XCTFail("Expected result \(expectedResult) got \(receivedResult) instead", file: file, line: line)
 			}
@@ -170,5 +215,5 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		action()
 		wait(for: [exp], timeout: 1.0)
 	}
-
+	
 }
