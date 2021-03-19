@@ -10,17 +10,6 @@ import XCTest
 
 import EssentialFeed
 
-struct FeedImageComment: Hashable {
-	let id: UUID
-	let message: String
-	let createdAt: Date
-	let author: CommentAuthor
-}
-
-struct CommentAuthor: Hashable {
-	let username: String
-}
-
 final class RemoteCommentsLoader {
 	private let url: URL
 	private let client: HTTPClient
