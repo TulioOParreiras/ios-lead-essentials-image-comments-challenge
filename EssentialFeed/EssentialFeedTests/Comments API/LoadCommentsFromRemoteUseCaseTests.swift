@@ -10,14 +10,14 @@ import XCTest
 
 import EssentialFeed
 
-struct FeedImageComment {
+struct FeedImageComment: Hashable {
 	let id: UUID
 	let message: String
 	let createdAt: Date
 	let author: CommentAuthor
 }
 
-struct CommentAuthor {
+struct CommentAuthor: Hashable {
 	let username: String
 }
 
@@ -30,12 +30,14 @@ final class RemoteCommentsLoader {
 		case invalidData
 	}
 	
+	typealias Result = Swift.Result<[FeedImageComment], Swift.Error>
+	
 	init(url: URL, client: HTTPClient) {
 		self.url = url
 		self.client = client
 	}
 	
-	func load(completion: @escaping (Result<[FeedImageComment], Swift.Error>) -> Void) {
+	func load(completion: @escaping (Result) -> Void) {
 		client.get(from: url) { result in
 			switch result {
 			case let .success(data, response): completion(.failure(RemoteCommentsLoader.Error.invalidData))
@@ -75,40 +77,19 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 	func test_load_deliversErrorOnClientError() {
 		let (sut, client) = makeSUT()
 		
-		let exp = expectation(description: "Wait for load completion")
-		let clientError = RemoteCommentsLoader.Error.connectivity
-		sut.load { receivedResult in
-			switch receivedResult {
-			case .success:
-				XCTFail("Expected error \(clientError), got success instead")
-			case let .failure(receivedError):
-				XCTAssertEqual(clientError, receivedError as! RemoteCommentsLoader.Error, "Expected error \(clientError), got \(receivedError) instead")
-			}
-			exp.fulfill()
-		}
-		
-		client.complete(with: clientError)
-		wait(for: [exp], timeout: 1.0)
+		expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.connectivity), when: {
+			let clientError = NSError(domain: "Test", code: 0)
+			client.complete(with: clientError)
+		})
 	}
 	
 	func test_load_deliversErrorOnNon200HTTPResponse() {
 		let (sut, client) = makeSUT()
 		
-		let exp = expectation(description: "Wait for load completion")
-		let clientError = RemoteCommentsLoader.Error.invalidData
-		sut.load { receivedResult in
-			switch receivedResult {
-			case .success:
-				XCTFail("Expected error \(clientError), got success instead")
-			case let .failure(receivedError):
-				XCTAssertEqual(clientError, receivedError as! RemoteCommentsLoader.Error, "Expected error \(clientError), got \(receivedError) instead")
-			}
-			exp.fulfill()
-		}
-		
-		let json = makeItemsJSON([])
-		client.complete(withStatusCode: 201, data: json)
-		wait(for: [exp], timeout: 1.0)
+		expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.invalidData), when: {
+			let json = makeItemsJSON([])
+			client.complete(withStatusCode: 201, data: json)
+		})
 	}
 	
 	// MARK: - Helpers
@@ -123,6 +104,25 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 	private func makeItemsJSON(_ items: [[String: Any]]) -> Data {
 		let json = ["items": items]
 		return try! JSONSerialization.data(withJSONObject: json)
+	}
+	
+	private func expect(_ sut: RemoteCommentsLoader, toCompleteWith expectedResult: RemoteCommentsLoader.Result, when action: () -> Void, file: StaticString = #file, line: UInt = #line) {
+		let exp = expectation(description: "Wait for load completion")
+		
+		sut.load { receivedResult in
+			switch (receivedResult, expectedResult) {
+			case let (.success(receivedItems), .success(expectedItems)):
+				XCTAssertEqual(receivedItems, expectedItems, "Expected items \(expectedItems), got \(receivedItems) instead", file: file, line: line)
+			case let (.failure(receivedError as RemoteCommentsLoader.Error), .failure(expectedError as RemoteCommentsLoader.Error)):
+				XCTAssertEqual(receivedError, expectedError, "Expected error \(expectedError), got \(receivedError) instead", file: file, line: line)
+			default:
+				XCTFail("Expected result \(expectedResult) got \(receivedResult) instead", file: file, line: line)
+			}
+			exp.fulfill()
+		}
+		
+		action()
+		wait(for: [exp], timeout: 1.0)
 	}
 
 }
