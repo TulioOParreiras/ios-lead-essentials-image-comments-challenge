@@ -86,10 +86,14 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 	func test_load_deliversErrorOnNon200HTTPResponse() {
 		let (sut, client) = makeSUT()
 		
-		expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.invalidData), when: {
-			let json = makeItemsJSON([])
-			client.complete(withStatusCode: 201, data: json)
-		})
+		let statusCodes = [199, 201, 300, 400, 500]
+		
+		statusCodes.enumerated().forEach { index, statusCode in
+			expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.invalidData), when: {
+				let json = makeItemsJSON([])
+				client.complete(withStatusCode: statusCode, data: json, at: index)
+			})
+		}
 	}
 	
 	// MARK: - Helpers
