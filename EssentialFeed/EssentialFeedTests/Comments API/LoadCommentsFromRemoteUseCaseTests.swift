@@ -10,64 +10,6 @@ import XCTest
 
 import EssentialFeed
 
-final class RemoteCommentsLoader {
-	private let url: URL
-	private let client: HTTPClient
-	
-	enum Error: Swift.Error {
-		case connectivity
-		case invalidData
-	}
-	
-	typealias Result = Swift.Result<[FeedImageComment], Swift.Error>
-	
-	init(url: URL, client: HTTPClient) {
-		self.url = url
-		self.client = client
-	}
-	
-	func load(completion: @escaping (Result) -> Void) {
-		client.get(from: url) { [weak self] result in
-			guard self != nil else { return }
-			switch result {
-			case let .success((data, response)):
-				let decoder = JSONDecoder()
-				decoder.dateDecodingStrategy = .iso8601
-				if response.statusCode == 200 {
-					do {
-						let root = try decoder.decode(Root.self, from: data)
-						completion(.success(root.items.map { $0.model }))
-					} catch {
-						completion(.failure(RemoteCommentsLoader.Error.invalidData))
-					}
-				} else {
-					completion(.failure(RemoteCommentsLoader.Error.invalidData))
-				}
-			case .failure: completion(.failure(RemoteCommentsLoader.Error.connectivity))
-			}
-		}
-	}
-	
-	private struct Root: Decodable {
-		let items: [RemoteCommentItem]
-	}
-	
-	private struct RemoteCommentItem: Decodable {
-		let id: UUID
-		let message: String
-		let created_at: Date
-		let author: RemoteAuthorItem
-		
-		var model: FeedImageComment {
-			FeedImageComment(id: id, message: message, createdAt: created_at, author: CommentAuthor(username: author.username))
-		}
-	}
-	
-	private struct RemoteAuthorItem: Decodable {
-		let username: String
-	}
-}
-
 class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 	
 	func test_init_doesNotRequestDataFromURL() {
