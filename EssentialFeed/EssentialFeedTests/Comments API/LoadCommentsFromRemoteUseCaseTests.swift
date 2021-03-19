@@ -40,10 +40,34 @@ final class RemoteCommentsLoader {
 	func load(completion: @escaping (Result) -> Void) {
 		client.get(from: url) { result in
 			switch result {
-			case let .success(data, response): completion(.failure(RemoteCommentsLoader.Error.invalidData))
+			case let .success((data, response)):
+				if response.statusCode == 200, let root = try? JSONDecoder().decode(Root.self, from: data) {
+					completion(.success(root.items.map { $0.model }))
+				} else {
+					completion(.failure(RemoteCommentsLoader.Error.invalidData))
+				}
 			case .failure: completion(.failure(RemoteCommentsLoader.Error.connectivity))
 			}
 		}
+	}
+	
+	private struct Root: Decodable {
+		let items: [RemoteCommentItem]
+	}
+	
+	private struct RemoteCommentItem: Decodable {
+		let id: UUID
+		let message: String
+		let created_at: Date
+		let author: RemoteAuthorItem
+		
+		var model: FeedImageComment {
+			FeedImageComment(id: id, message: message, createdAt: created_at, author: CommentAuthor(username: author.username))
+		}
+	}
+	
+	private struct RemoteAuthorItem: Decodable {
+		let username: String
 	}
 }
 
@@ -102,6 +126,15 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.invalidData), when: {
 			let invalidData = Data("invalid data".utf8)
 			client.complete(withStatusCode: 200, data: invalidData)
+		})
+	}
+	
+	func test_load_deliversNoItemsOn200HTTPResponseWithEmptyJSONList() {
+		let (sut, client) = makeSUT()
+		
+		expect(sut, toCompleteWith: .success([]), when: {
+			let json = makeItemsJSON([])
+			client.complete(withStatusCode: 200, data: json)
 		})
 	}
 	
