@@ -96,6 +96,15 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		}
 	}
 	
+	func test_load_deliversErrorOn200HTTPResponseWithInvalidJSON() {
+		let (sut, client) = makeSUT()
+		
+		expect(sut, toCompleteWith: .failure(RemoteCommentsLoader.Error.invalidData), when: {
+			let invalidData = Data("invalid data".utf8)
+			client.complete(withStatusCode: 200, data: invalidData)
+		})
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT(url: URL = URL(string: "https://any-url.com")!) -> (sut: RemoteCommentsLoader, client: HTTPClientSpy) {
