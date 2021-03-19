@@ -10,17 +10,38 @@ import XCTest
 
 import EssentialFeed
 
+struct FeedImageComment {
+	let id: UUID
+	let message: String
+	let createdAt: Date
+	let author: CommentAuthor
+}
+
+struct CommentAuthor {
+	let username: String
+}
+
 final class RemoteCommentsLoader {
 	private let url: URL
 	private let client: HTTPClient
+	
+	enum Error: Swift.Error {
+		case connectivity
+		case invalidData
+	}
 	
 	init(url: URL, client: HTTPClient) {
 		self.url = url
 		self.client = client
 	}
 	
-	func load() {
-		client.get(from: url) { _ in }
+	func load(completion: @escaping (Result<[FeedImageComment], Swift.Error>) -> Void) {
+		client.get(from: url) { result in
+			switch result {
+			case .success: break
+			case .failure: completion(.failure(RemoteCommentsLoader.Error.connectivity))
+			}
+		}
 	}
 }
 
@@ -36,7 +57,7 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		let url = URL(string: "https://a-given-url.com")!
 		let (sut, client) = makeSUT(url: url)
 		
-		sut.load()
+		sut.load { _ in }
 		
 		XCTAssertEqual(client.requestedURLs, [url])
 	}
@@ -45,10 +66,29 @@ class LoadCommentsFromRemoteUseCaseTests: XCTestCase {
 		let url = URL(string: "https://a-given-url.com")!
 		let (sut, client) = makeSUT(url: url)
 		
-		sut.load()
-		sut.load()
+		sut.load { _ in }
+		sut.load { _ in }
 		
 		XCTAssertEqual(client.requestedURLs, [url, url])
+	}
+	
+	func test_load_deliversErrorOnClientError() {
+		let (sut, client) = makeSUT()
+		
+		let exp = expectation(description: "Wait for load completion")
+		let clientError = RemoteCommentsLoader.Error.connectivity
+		sut.load { receivedResult in
+			switch receivedResult {
+			case .success:
+				XCTFail("Expected error \(clientError), got success instead")
+			case let .failure(receivedError):
+				XCTAssertEqual(clientError, receivedError as! RemoteCommentsLoader.Error, "Expected error \(clientError), got \(receivedError) instead")
+			}
+			exp.fulfill()
+		}
+		
+		client.complete(with: clientError)
+		wait(for: [exp], timeout: 1.0)
 	}
 	
 	// MARK: - Helpers
