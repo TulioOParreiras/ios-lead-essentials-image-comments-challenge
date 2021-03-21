@@ -55,10 +55,7 @@ final class ImageCommentsPresenter {
 class ImageCommentsPresenterTests: XCTestCase {
 
 	func test_title_isLocalized() {
-		let bundle = Bundle(for: ImageCommentsPresenter.self)
-		let table = "ImageComments"
-		let title = bundle.localizedString(forKey: "IMAGE_COMMENTS_VIEW_TITLE", value: nil, table: table)
-		XCTAssertEqual(ImageCommentsPresenter.title, title)
+		XCTAssertEqual(ImageCommentsPresenter.title, localized("IMAGE_COMMENTS_VIEW_TITLE"))
 	}
 	
 	func test_init_doesNotSendMessagesToView() {
@@ -95,12 +92,8 @@ class ImageCommentsPresenterTests: XCTestCase {
 		
 		sut.didFinishLoadingComments(with: anyNSError())
 		
-		let bundle = Bundle(for: ImageCommentsPresenter.self)
-		let table = "ImageComments"
-		let errorMessage = bundle.localizedString(forKey: "IMAGE_COMMENTS_LOAD_ERROR", value: nil, table: table)
-		
 		XCTAssertEqual(view.messages, [
-			.display(errorMessage: errorMessage),
+			.display(errorMessage: localized("IMAGE_COMMENTS_LOAD_ERROR")),
 			.display(isLoading: false)
 		])
 	}
@@ -111,6 +104,12 @@ class ImageCommentsPresenterTests: XCTestCase {
 		let view = ViewSpy()
 		let sut = ImageCommentsPresenter(commentsView: view, loadingView: view, errorView: view)
 		return (sut, view)
+	}
+	
+	func localized(_ key: String) -> String {
+		let bundle = Bundle(for: ImageCommentsPresenter.self)
+		let table = "ImageComments"
+		return bundle.localizedString(forKey: key, value: nil, table: table)
 	}
 	
 	func uniqueImageComment() -> FeedImageComment {
