@@ -24,6 +24,7 @@ protocol ImageCommentsView {
 
 final class ImageCommentsPresenter {
 	static var title: String { "Comments" }
+	private var commentsLoadError: String { "Couldn't connect to server" }
 	
 	private let commentsView: ImageCommentsView
 	private let loadingView: ImageCommentsLoadingView
@@ -42,6 +43,11 @@ final class ImageCommentsPresenter {
 	
 	func didFinishLoadingComments(with imageComments: [FeedImageComment]) {
 		commentsView.display(imageComments)
+		loadingView.display(false)
+	}
+	
+	func didFinishLoadingComments(with error: Error) {
+		errorView.display(commentsLoadError)
 		loadingView.display(false)
 	}
 }
@@ -82,7 +88,21 @@ class ImageCommentsPresenterTests: XCTestCase {
 			.display(comments: comments),
 			.display(isLoading: false)
 		])
+	}
+	
+	func test_didFinishLoadingCommentsWithError_displaysLocalizedErrorMessageAndStopsLoading() {
+		let (sut, view) = makeSUT()
 		
+		sut.didFinishLoadingComments(with: anyNSError())
+		
+		let bundle = Bundle(for: ImageCommentsPresenter.self)
+		let table = "ImageComments"
+		let errorMessage = bundle.localizedString(forKey: "IMAGE_COMMENTS_LOAD_ERROR", value: nil, table: table)
+		
+		XCTAssertEqual(view.messages, [
+			.display(errorMessage: errorMessage),
+			.display(isLoading: false)
+		])
 	}
 	
 	// MARK: - Helpers
