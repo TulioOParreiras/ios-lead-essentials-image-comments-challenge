@@ -8,6 +8,8 @@
 
 import XCTest
 
+import EssentialFeed
+
 protocol ImageCommentsErrorView {
 	func display(_ errorMessage: String?)
 }
@@ -16,13 +18,19 @@ protocol ImageCommentsLoadingView {
 	func display(_ isLoading: Bool)
 }
 
+protocol ImageCommentsView {
+	func display(_ comments: [FeedImageComment])
+}
+
 final class ImageCommentsPresenter {
 	static var title: String { "Comments" }
 	
+	private let commentsView: ImageCommentsView
 	private let loadingView: ImageCommentsLoadingView
 	private let errorView: ImageCommentsErrorView
 	
-	init(loadingView: ImageCommentsLoadingView, errorView: ImageCommentsErrorView) {
+	init(commentsView: ImageCommentsView, loadingView: ImageCommentsLoadingView, errorView: ImageCommentsErrorView) {
+		self.commentsView = commentsView
 		self.loadingView = loadingView
 		self.errorView = errorView
 	}
@@ -30,6 +38,11 @@ final class ImageCommentsPresenter {
 	func didStartLoadingComments() {
 		errorView.display(nil)
 		loadingView.display(true)
+	}
+	
+	func didFinishLoadingComments(with imageComments: [FeedImageComment]) {
+		commentsView.display(imageComments)
+		loadingView.display(false)
 	}
 }
 
@@ -59,21 +72,47 @@ class ImageCommentsPresenterTests: XCTestCase {
 		])
 	}
 	
+	func test_didFinishLoadingComments_displaysCommentsAndStopsLoading() {
+		let (sut, view) = makeSUT()
+		let comments = uniqueImageComments()
+		
+		sut.didFinishLoadingComments(with: comments)
+		
+		XCTAssertEqual(view.messages, [
+			.display(comments: comments),
+			.display(isLoading: false)
+		])
+		
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT() -> (sut: ImageCommentsPresenter, view: ViewSpy) {
 		let view = ViewSpy()
-		let sut = ImageCommentsPresenter(loadingView: view, errorView: view)
+		let sut = ImageCommentsPresenter(commentsView: view, loadingView: view, errorView: view)
 		return (sut, view)
 	}
 	
-	final class ViewSpy: ImageCommentsLoadingView, ImageCommentsErrorView {
+	func uniqueImageComment() -> FeedImageComment {
+		return FeedImageComment(id: UUID(), message: "any message", createdAt: Date(), author: CommentAuthor(username: "any username"))
+	}
+	
+	func uniqueImageComments() -> [FeedImageComment] {
+		return [uniqueImageComment(), uniqueImageComment()]
+	}
+	
+	final class ViewSpy: ImageCommentsView, ImageCommentsLoadingView, ImageCommentsErrorView {
 		enum Message: Hashable {
 			case display(errorMessage: String?)
 			case display(isLoading: Bool)
+			case display(comments: [FeedImageComment])
 		}
 		
 		private(set) var messages = Set<Message>()
+		
+		func display(_ comments: [FeedImageComment]) {
+			messages.insert(.display(comments: comments))
+		}
 		
 		func display(_ isLoading: Bool) {
 			messages.insert(.display(isLoading: isLoading))
