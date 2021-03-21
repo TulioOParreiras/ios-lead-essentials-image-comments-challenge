@@ -10,48 +10,6 @@ import XCTest
 
 import EssentialFeed
 
-protocol ImageCommentsErrorView {
-	func display(_ errorMessage: String?)
-}
-
-protocol ImageCommentsLoadingView {
-	func display(_ isLoading: Bool)
-}
-
-protocol ImageCommentsView {
-	func display(_ comments: [FeedImageComment])
-}
-
-final class ImageCommentsPresenter {
-	static var title: String { "Comments" }
-	private var commentsLoadError: String { "Couldn't connect to server" }
-	
-	private let commentsView: ImageCommentsView
-	private let loadingView: ImageCommentsLoadingView
-	private let errorView: ImageCommentsErrorView
-	
-	init(commentsView: ImageCommentsView, loadingView: ImageCommentsLoadingView, errorView: ImageCommentsErrorView) {
-		self.commentsView = commentsView
-		self.loadingView = loadingView
-		self.errorView = errorView
-	}
-	
-	func didStartLoadingComments() {
-		errorView.display(nil)
-		loadingView.display(true)
-	}
-	
-	func didFinishLoadingComments(with imageComments: [FeedImageComment]) {
-		commentsView.display(imageComments)
-		loadingView.display(false)
-	}
-	
-	func didFinishLoadingComments(with error: Error) {
-		errorView.display(commentsLoadError)
-		loadingView.display(false)
-	}
-}
-
 class ImageCommentsPresenterTests: XCTestCase {
 
 	func test_title_isLocalized() {
