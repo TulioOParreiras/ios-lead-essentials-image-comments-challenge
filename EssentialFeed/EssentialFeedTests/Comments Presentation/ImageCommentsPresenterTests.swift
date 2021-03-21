@@ -108,10 +108,14 @@ class ImageCommentsPresenterTests: XCTestCase {
 		return (sut, view)
 	}
 	
-	func localized(_ key: String) -> String {
+	func localized(_ key: String, file: StaticString = #file, line: UInt = #line) -> String {
 		let bundle = Bundle(for: ImageCommentsPresenter.self)
 		let table = "ImageComments"
-		return bundle.localizedString(forKey: key, value: nil, table: table)
+		let localizedString = bundle.localizedString(forKey: key, value: nil, table: table)
+		if localizedString == key {
+			XCTFail("Missing localized string for key: \(key) in table: \(table)", file: file, line: line)
+		}
+		return localizedString
 	}
 	
 	func uniqueImageComment() -> FeedImageComment {
