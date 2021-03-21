@@ -20,5 +20,16 @@ class ImageCommentsPresenterTests: XCTestCase {
 		let title = bundle.localizedString(forKey: "IMAGE_COMMENTS_VIEW_TITLE", value: nil, table: table)
 		XCTAssertEqual(ImageCommentsPresenter.title, title)
 	}
+	
+	func test_init_doesNotSendMessagesToView() {
+		let view = ViewSpy()
+		let _ = ImageCommentsPresenter()
+		
+		XCTAssertTrue(view.messages.isEmpty)
+	}
+	
+	final class ViewSpy {
+		private(set) var messages = Set<AnyHashable>()
+	}
 
 }
