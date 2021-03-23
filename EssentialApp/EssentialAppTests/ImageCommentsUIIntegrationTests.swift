@@ -9,24 +9,53 @@
 import XCTest
 import EssentialFeed
 
+final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerDelegate {
+	private let loader: ImageCommentsLoader
+	var presenter: ImageCommentsPresenter?
+	
+	init(loader: ImageCommentsLoader) {
+		self.loader = loader
+	}
+	
+	func didRequestCommentsReload() {
+		presenter?.didStartLoadingComments()
+		
+		loader.load { _ in
+			self.presenter?.didFinishLoadingComments(with: [])
+		}
+	}
+	
+}
+
 final class ImageCommentsUIComposer {
 	private init() { }
 	
 	static func imageComments(loader: ImageCommentsLoader) -> ImageCommentsViewController {
+		let presentationAdapter = ImageCommentsLoaderPresentationAdapter(loader: loader)
+		
 		let controller = ImageCommentsViewController()
+		let presenter = ImageCommentsPresenter(commentsView: controller, loadingView: controller, errorView: controller)
+		presentationAdapter.presenter = presenter
+		
 		controller.title = ImageCommentsPresenter.title
-		controller.loader = loader
+		controller.delegate = presentationAdapter
 		return controller
 	}
 }
 
 protocol ImageCommentsLoader {
-	func load()
+	typealias Result = Swift.Result<[FeedImageComment], Error>
+	
+	func load(completion: @escaping(Result) -> Void)
 }
 
-final class ImageCommentsViewController: UITableViewController {
+protocol ImageCommentsViewControllerDelegate {
+	func didRequestCommentsReload()
+}
+
+final class ImageCommentsViewController: UITableViewController, ImageCommentsView, ImageCommentsLoadingView, ImageCommentsErrorView {
 	
-	var loader: ImageCommentsLoader?
+	var delegate: ImageCommentsViewControllerDelegate?
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -36,7 +65,19 @@ final class ImageCommentsViewController: UITableViewController {
 	}
 	
 	@objc func refresh() {
-		loader?.load()
+		delegate?.didRequestCommentsReload()
+	}
+	
+	func display(_ isLoading: Bool) {
+		isLoading ? refreshControl?.beginRefreshing() : refreshControl?.endRefreshing()
+	}
+	
+	func display(_ comments: [FeedImageComment]) {
+		
+	}
+	
+	func display(_ errorMessage: String?) {
+		
 	}
 	
 }
@@ -70,6 +111,22 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		XCTAssertEqual(loader.loadCallCount, 3)
 	}
 	
+	func test_loadingCommentsIndicator_isVisibleWhileLoadingComments() {
+		let (sut, loader) = makeSUT()
+		
+		sut.loadViewIfNeeded()
+		XCTAssertTrue(sut.isShowingLoadingIndicator)
+		
+		loader.completeCommentsLoading(at: 0)
+		XCTAssertFalse(sut.isShowingLoadingIndicator)
+		
+		sut.simulateUserInitiatedCommentsReload()
+		XCTAssertTrue(sut.isShowingLoadingIndicator)
+		
+		loader.completeCommentsLoading(at: 1)
+		XCTAssertFalse(sut.isShowingLoadingIndicator)
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT() -> (sut: ImageCommentsViewController, loader: LoaderSpy) {
@@ -79,10 +136,17 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 	}
 	
 	private final class LoaderSpy: ImageCommentsLoader {
-		var loadCallCount = 0
+		var loadCallCount: Int {
+			messages.count
+		}
+		private var messages = [(ImageCommentsLoader.Result) -> Void]()
 		
-		func load() {
-			loadCallCount += 1
+		func load(completion: @escaping (ImageCommentsLoader.Result) -> Void) {
+			messages.append(completion)
+		}
+		
+		func completeCommentsLoading(with comments: [FeedImageComment] = [], at index: Int = 0) {
+			messages[index](.success(comments))
 		}
 	}
 
@@ -91,5 +155,9 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 private extension ImageCommentsViewController {
 	func simulateUserInitiatedCommentsReload() {
 		refreshControl?.simulate(event: .valueChanged)
+	}
+	
+	var isShowingLoadingIndicator: Bool {
+		return refreshControl?.isRefreshing == true
 	}
 }
