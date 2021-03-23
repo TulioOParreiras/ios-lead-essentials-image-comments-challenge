@@ -12,21 +12,34 @@ import EssentialFeed
 final class ImageCommentsUIComposer {
 	private init() { }
 	
-	static func imageComments() -> ImageCommentsViewController {
+	static func imageComments(loader: ImageCommentsLoader) -> ImageCommentsViewController {
 		let controller = ImageCommentsViewController()
 		controller.title = ImageCommentsPresenter.title
+		controller.loader = loader
 		return controller
 	}
 }
 
+protocol ImageCommentsLoader {
+	func load()
+}
+
 final class ImageCommentsViewController: UIViewController {
+	
+	var loader: ImageCommentsLoader?
+	
+	override func viewDidLoad() {
+		super.viewDidLoad()
+		loader?.load()
+	}
 	
 }
 
 final class ImageCommentsUIIntegrationTests: XCTestCase {
 	
 	func test_imageCommentsView_hasTitle() {
-		let sut = ImageCommentsUIComposer.imageComments()
+		let loader = LoaderSpy()
+		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
 		
 		sut.loadViewIfNeeded()
 		
@@ -38,5 +51,23 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		XCTAssertEqual(sut.title, title)
 	}
 
+	func test_loadCommentsActions_requestCommentsFromLoader() {
+		let loader = LoaderSpy()
+		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
+		XCTAssertEqual(loader.loadCallCount, 0)
+		
+		sut.loadViewIfNeeded()
+		XCTAssertEqual(loader.loadCallCount, 1)
+	}
+	
+	// MARK: - Helpers
+	
+	private final class LoaderSpy: ImageCommentsLoader {
+		var loadCallCount = 0
+		
+		func load() {
+			loadCallCount += 1
+		}
+	}
 
 }
