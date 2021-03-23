@@ -38,8 +38,7 @@ final class ImageCommentsViewController: UIViewController {
 final class ImageCommentsUIIntegrationTests: XCTestCase {
 	
 	func test_imageCommentsView_hasTitle() {
-		let loader = LoaderSpy()
-		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
+		let (sut, _) = makeSUT()
 		
 		sut.loadViewIfNeeded()
 		
@@ -52,8 +51,7 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 	}
 
 	func test_loadCommentsActions_requestCommentsFromLoader() {
-		let loader = LoaderSpy()
-		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
+		let (sut, loader) = makeSUT()
 		XCTAssertEqual(loader.loadCallCount, 0)
 		
 		sut.loadViewIfNeeded()
@@ -61,6 +59,12 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 	}
 	
 	// MARK: - Helpers
+	
+	private func makeSUT() -> (sut: ImageCommentsViewController, loader: LoaderSpy) {
+		let loader = LoaderSpy()
+		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
+		return (sut, loader)
+	}
 	
 	private final class LoaderSpy: ImageCommentsLoader {
 		var loadCallCount = 0
