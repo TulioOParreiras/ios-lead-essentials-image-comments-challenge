@@ -20,8 +20,11 @@ final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerD
 	func didRequestCommentsReload() {
 		presenter?.didStartLoadingComments()
 		
-		loader.load { _ in
+		loader.load { result in
 			self.presenter?.didFinishLoadingComments(with: [])
+			if let comments = try? result.get() {
+				self.presenter?.didFinishLoadingComments(with: comments)
+			}
 		}
 	}
 	
@@ -56,6 +59,11 @@ protocol ImageCommentsViewControllerDelegate {
 final class ImageCommentsViewController: UITableViewController, ImageCommentsView, ImageCommentsLoadingView, ImageCommentsErrorView {
 	
 	var delegate: ImageCommentsViewControllerDelegate?
+	private var models = [FeedImageComment]() {
+		didSet {
+			tableView.reloadData()
+		}
+	}
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -73,13 +81,32 @@ final class ImageCommentsViewController: UITableViewController, ImageCommentsVie
 	}
 	
 	func display(_ comments: [FeedImageComment]) {
-		
+		models = comments
 	}
 	
 	func display(_ errorMessage: String?) {
 		
 	}
 	
+	override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+		return models.count
+	}
+	
+	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+		let cell = ImageCommentCell()
+		let model = models[indexPath.row]
+		cell.usernameLabel.text = model.author.username
+		cell.dateLabel.text = String(describing: model.createdAt)
+		cell.messageLabel.text = model.message
+		return cell
+	}
+	
+}
+
+final class ImageCommentCell: UITableViewCell {
+	private(set) lazy var usernameLabel = UILabel()
+	private(set) lazy var dateLabel = UILabel()
+	private(set) lazy var messageLabel = UILabel()
 }
 
 final class ImageCommentsUIIntegrationTests: XCTestCase {
@@ -127,12 +154,62 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		XCTAssertFalse(sut.isShowingLoadingIndicator)
 	}
 	
+	func test_loadCommentsCompletion_rendersSuccessfullyLoadedComments() {
+		let comment1 = makeComment(message: "a message", authorName: "a name")
+		let comment2 = makeComment(message: "another message", authorName: "another name")
+		let (sut, loader) = makeSUT()
+		
+		sut.loadViewIfNeeded()
+		assertThat(sut, isRendering: [])
+		
+		loader.completeCommentsLoading(with: [comment1])
+		assertThat(sut, isRendering: [comment1])
+		
+		sut.simulateUserInitiatedCommentsReload()
+		loader.completeCommentsLoading(with: [comment1, comment2], at: 1)
+		assertThat(sut, isRendering: [comment1, comment2])
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT() -> (sut: ImageCommentsViewController, loader: LoaderSpy) {
 		let loader = LoaderSpy()
 		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
 		return (sut, loader)
+	}
+	
+	func makeComment(message: String = "any message", authorName: String = "any name") -> FeedImageComment {
+		return FeedImageComment(id: UUID(), message: message, createdAt: Date(), author: CommentAuthor(username: authorName))
+	}
+	
+	func assertThat(_ sut: ImageCommentsViewController, isRendering comments: [FeedImageComment], file: StaticString = #filePath, line: UInt = #line) {
+		sut.view.enforceLayoutCycle()
+		
+		guard sut.numberOfRenderedCommentViews() == comments.count else {
+			return XCTFail("Expected \(comments.count) images, got \(sut.numberOfRenderedCommentViews()) instead.", file: file, line: line)
+		}
+		
+		comments.enumerated().forEach { index, comment in
+			assertThat(sut, hasViewConfiguredFor: comment, at: index, file: file, line: line)
+		}
+		
+		executeRunLoopToCleanUpReferences()
+	}
+	
+	func assertThat(_ sut: ImageCommentsViewController, hasViewConfiguredFor comment: FeedImageComment, at index: Int, file: StaticString = #filePath, line: UInt = #line) {
+		let view = sut.commentView(at: index)
+
+		guard let cell = view as? ImageCommentCell else {
+			return XCTFail("Expected \(ImageCommentCell.self) instance, got \(String(describing: view)) instead", file: file, line: line)
+		}
+		
+		XCTAssertEqual(cell.username, comment.author.username)
+		XCTAssertEqual(cell.date, String(describing: comment.createdAt))
+		XCTAssertEqual(cell.message, comment.message)
+	}
+	
+	private func executeRunLoopToCleanUpReferences() {
+		RunLoop.current.run(until: Date())
 	}
 	
 	private final class LoaderSpy: ImageCommentsLoader {
@@ -152,6 +229,20 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 
 }
 
+private extension ImageCommentCell {
+	var username: String? {
+		usernameLabel.text
+	}
+
+	var date: String? {
+		dateLabel.text
+	}
+	
+	var message: String? {
+		messageLabel.text 
+	}
+}
+
 private extension ImageCommentsViewController {
 	func simulateUserInitiatedCommentsReload() {
 		refreshControl?.simulate(event: .valueChanged)
@@ -159,5 +250,18 @@ private extension ImageCommentsViewController {
 	
 	var isShowingLoadingIndicator: Bool {
 		return refreshControl?.isRefreshing == true
+	}
+	
+	private var commentsSection: Int {
+		return 0
+	}
+	
+	func numberOfRenderedCommentViews() -> Int {
+		tableView.numberOfRows(inSection: commentsSection)
+	}
+	
+	func commentView(at index: Int) -> UITableViewCell? {
+		let ds = tableView.dataSource
+		return ds?.tableView(tableView, cellForRowAt: IndexPath(row: index, section: commentsSection))
 	}
 }
