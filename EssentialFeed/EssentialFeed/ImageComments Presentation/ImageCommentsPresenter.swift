@@ -21,8 +21,18 @@ public protocol ImageCommentsView {
 }
 
 public final class ImageCommentsPresenter {
-	public static var title: String { "Comments" }
-	private var commentsLoadError: String { "Couldn't connect to server" }
+	public static var title: String {
+		NSLocalizedString("IMAGE_COMMENTS_VIEW_TITLE",
+						  tableName: "ImageComments",
+						  bundle: Bundle(for: ImageCommentsPresenter.self),
+						  comment: "Title for comments view")
+	}
+	private var commentsLoadError: String {
+		NSLocalizedString("IMAGE_COMMENTS_LOAD_ERROR",
+						  tableName: "ImageComments",
+						  bundle: Bundle(for: ImageCommentsPresenter.self),
+						  comment: "Error message displayed when we can't load the image comments from the server")
+	}
 	
 	private let commentsView: ImageCommentsView
 	private let loadingView: ImageCommentsLoadingView

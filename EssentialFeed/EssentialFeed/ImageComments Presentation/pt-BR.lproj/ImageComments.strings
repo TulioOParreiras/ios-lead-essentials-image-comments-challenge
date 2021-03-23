@@ -1,0 +1,10 @@
+/* 
+  ImageComments.strings
+  EssentialFeed
+
+  Created by Tulio Parreiras on 21/03/21.
+  Copyright © 2021 Essential Developer. All rights reserved.
+*/
+
+"IMAGE_COMMENTS_VIEW_TITLE" = "Comentários";
+"IMAGE_COMMENTS_LOAD_ERROR" = "Não foi possível conectar ao servidor";
