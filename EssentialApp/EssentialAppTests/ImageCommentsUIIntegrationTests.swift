@@ -65,6 +65,9 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		
 		sut.simulateUserInitiatedCommentsReload()
 		XCTAssertEqual(loader.loadCallCount, 2)
+		
+		sut.simulateUserInitiatedCommentsReload()
+		XCTAssertEqual(loader.loadCallCount, 3)
 	}
 	
 	// MARK: - Helpers
