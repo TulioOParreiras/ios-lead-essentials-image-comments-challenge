@@ -24,12 +24,18 @@ protocol ImageCommentsLoader {
 	func load()
 }
 
-final class ImageCommentsViewController: UIViewController {
+final class ImageCommentsViewController: UITableViewController {
 	
 	var loader: ImageCommentsLoader?
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
+		refreshControl = UIRefreshControl()
+		refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
+		refresh()
+	}
+	
+	@objc func refresh() {
 		loader?.load()
 	}
 	
@@ -56,6 +62,9 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		
 		sut.loadViewIfNeeded()
 		XCTAssertEqual(loader.loadCallCount, 1)
+		
+		sut.simulateUserInitiatedCommentsReload()
+		XCTAssertEqual(loader.loadCallCount, 2)
 	}
 	
 	// MARK: - Helpers
@@ -74,4 +83,10 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		}
 	}
 
+}
+
+private extension ImageCommentsViewController {
+	func simulateUserInitiatedCommentsReload() {
+		refreshControl?.simulate(event: .valueChanged)
+	}
 }
