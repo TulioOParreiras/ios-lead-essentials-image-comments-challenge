@@ -21,7 +21,6 @@ final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerD
 		presenter?.didStartLoadingComments()
 		
 		loader.load { result in
-			self.presenter?.didFinishLoadingComments(with: [])
 			if let comments = try? result.get() {
 				self.presenter?.didFinishLoadingComments(with: comments)
 			}
@@ -184,6 +183,19 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		assertThat(sut, isRendering: [])
 	}
 	
+	func test_loadCommentsCompletion_doesNotAlterCurrentRenderingStateOnError() {
+		let comment1 = makeComment(message: "a message", authorName: "a name")
+		let (sut, loader) = makeSUT()
+		
+		sut.loadViewIfNeeded()
+		loader.completeCommentsLoading(with: [comment1], at: 0)
+		assertThat(sut, isRendering: [comment1])
+		
+		sut.simulateUserInitiatedCommentsReload()
+		loader.completeCommentsLoadingWithError(at: 1)
+		assertThat(sut, isRendering: [comment1])
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT() -> (sut: ImageCommentsViewController, loader: LoaderSpy) {
@@ -238,6 +250,10 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		
 		func completeCommentsLoading(with comments: [FeedImageComment] = [], at index: Int = 0) {
 			messages[index](.success(comments))
+		}
+		
+		func completeCommentsLoadingWithError(_ error: Error = anyNSError(), at index: Int = 0) {
+			messages[index](.failure(error))
 		}
 	}
 
