@@ -8,6 +8,7 @@
 
 import XCTest
 import EssentialFeed
+import EssentialFeediOS
 
 final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerDelegate {
 	private let loader: ImageCommentsLoader
@@ -21,8 +22,11 @@ final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerD
 		presenter?.didStartLoadingComments()
 		
 		loader.load { result in
-			if let comments = try? result.get() {
+			switch result {
+			case let .success(comments):
 				self.presenter?.didFinishLoadingComments(with: comments)
+			case let .failure(error):
+				self.presenter?.didFinishLoadingComments(with: error)
 			}
 		}
 	}
@@ -58,6 +62,8 @@ protocol ImageCommentsViewControllerDelegate {
 final class ImageCommentsViewController: UITableViewController, ImageCommentsView, ImageCommentsLoadingView, ImageCommentsErrorView {
 	
 	var delegate: ImageCommentsViewControllerDelegate?
+	private(set) var errorView = UILabel()
+	
 	private var models = [FeedImageComment]() {
 		didSet {
 			tableView.reloadData()
@@ -84,7 +90,7 @@ final class ImageCommentsViewController: UITableViewController, ImageCommentsVie
 	}
 	
 	func display(_ errorMessage: String?) {
-		
+		errorView.text = errorMessage
 	}
 	
 	override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -114,13 +120,7 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		let (sut, _) = makeSUT()
 		
 		sut.loadViewIfNeeded()
-		
-		let key = "IMAGE_COMMENTS_VIEW_TITLE"
-		let table = "ImageComments"
-		let bundle = Bundle(for: ImageCommentsPresenter.self)
-		let title = bundle.localizedString(forKey: key, value: nil, table: table)
-		
-		XCTAssertEqual(sut.title, title)
+		XCTAssertEqual(sut.title, localized("IMAGE_COMMENTS_VIEW_TITLE"))
 	}
 
 	func test_loadCommentsActions_requestCommentsFromLoader() {
@@ -196,12 +196,32 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		assertThat(sut, isRendering: [comment1])
 	}
 	
+	func test_loadCommentsCompletion_rendersErrorMessageOnErrorUntilNextReload() {
+		let (sut, loader) = makeSUT()
+		
+		sut.loadViewIfNeeded()
+		XCTAssertEqual(sut.errorMessage, nil)
+		
+		loader.completeCommentsLoadingWithError(at: 0)
+		XCTAssertEqual(sut.errorMessage, localized("IMAGE_COMMENTS_LOAD_ERROR"))
+		
+		sut.simulateUserInitiatedCommentsReload()
+		XCTAssertEqual(sut.errorMessage, nil)
+	}
+	
 	// MARK: - Helpers
 	
 	private func makeSUT() -> (sut: ImageCommentsViewController, loader: LoaderSpy) {
 		let loader = LoaderSpy()
 		let sut = ImageCommentsUIComposer.imageComments(loader: loader)
 		return (sut, loader)
+	}
+	
+	func localized(_ key: String) -> String {
+		let table = "ImageComments"
+		let bundle = Bundle(for: ImageCommentsPresenter.self)
+		let value = bundle.localizedString(forKey: key, value: nil, table: table)
+		return value
 	}
 	
 	func makeComment(message: String = "any message", authorName: String = "any name") -> FeedImageComment {
@@ -293,5 +313,9 @@ private extension ImageCommentsViewController {
 	func commentView(at index: Int) -> UITableViewCell? {
 		let ds = tableView.dataSource
 		return ds?.tableView(tableView, cellForRowAt: IndexPath(row: index, section: commentsSection))
+	}
+	
+	var errorMessage: String? {
+		return errorView.text
 	}
 }
