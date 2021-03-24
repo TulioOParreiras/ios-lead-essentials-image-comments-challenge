@@ -21,13 +21,21 @@ final class ImageCommentsLoaderPresentationAdapter: ImageCommentsViewControllerD
 	func didRequestCommentsReload() {
 		presenter?.didStartLoadingComments()
 		
-		loader.load { result in
+		let executionBlock: (ImageCommentsLoader.Result) -> Void = { result in
 			switch result {
 			case let .success(comments):
 				self.presenter?.didFinishLoadingComments(with: comments)
 			case let .failure(error):
 				self.presenter?.didFinishLoadingComments(with: error)
 			}
+		}
+		
+		loader.load { result in
+			guard Thread.isMainThread else {
+				DispatchQueue.main.async { executionBlock(result) }
+				return
+			}
+			executionBlock(result)
 		}
 	}
 	
@@ -207,6 +215,18 @@ final class ImageCommentsUIIntegrationTests: XCTestCase {
 		
 		sut.simulateUserInitiatedCommentsReload()
 		XCTAssertEqual(sut.errorMessage, nil)
+	}
+	
+	func test_loadCommentsCompletion_dispatchesFromBackgroundToMainThread() {
+		let (sut, loader) = makeSUT()
+		sut.loadViewIfNeeded()
+		
+		let exp = expectation(description: "Wait for background queue")
+		DispatchQueue.global().async {
+			loader.completeCommentsLoading()
+			exp.fulfill()
+		}
+		wait(for: [exp], timeout: 1.0)
 	}
 	
 	// MARK: - Helpers
